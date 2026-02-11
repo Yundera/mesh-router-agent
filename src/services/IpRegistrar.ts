@@ -244,6 +244,38 @@ export async function checkBackendHealth(backendUrl: string): Promise<boolean> {
   }
 }
 
+export interface BackendVersionInfo {
+  compatible: boolean;
+  version: number;
+  error?: string;
+}
+
+/**
+ * Checks the backend API version for compatibility.
+ * Returns version info indicating if the backend is compatible (v2+).
+ * Used for graceful migration - clients wait if backend is outdated.
+ */
+export async function checkBackendVersion(backendUrl: string): Promise<BackendVersionInfo> {
+  try {
+    const text = await httpGet(`${backendUrl}/router/api/version`);
+    const data = JSON.parse(text);
+
+    if (typeof data.version !== 'number') {
+      return { compatible: false, version: 0, error: 'Invalid version response' };
+    }
+
+    const compatible = data.version >= 2;
+    return { compatible, version: data.version };
+  } catch (error) {
+    // Endpoint doesn't exist or returned error - old backend
+    return {
+      compatible: false,
+      version: 0,
+      error: error instanceof Error ? error.message : 'Version check failed'
+    };
+  }
+}
+
 export interface HeartbeatResult {
   success: boolean;
   message: string;

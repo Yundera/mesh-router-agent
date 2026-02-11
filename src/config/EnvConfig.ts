@@ -36,6 +36,8 @@ interface EnvConfig {
   CERT_PATH: string;
   /** Path to store the CA certificate (default: ./data/ca-cert.pem) */
   CA_CERT_PATH: string;
+  /** Retry interval in seconds when initialization fails (default: 600 = 10 minutes) */
+  ERROR_RETRY_INTERVAL: number;
 }
 
 export const config: EnvConfig = {
@@ -52,6 +54,8 @@ export const config: EnvConfig = {
   CERT_KEY_PATH: process.env.CERT_KEY_PATH || './data/key.pem',
   CERT_PATH: process.env.CERT_PATH || './data/cert.pem',
   CA_CERT_PATH: process.env.CA_CERT_PATH || './data/ca-cert.pem',
+  // Retry interval on errors
+  ERROR_RETRY_INTERVAL: parseInt(process.env.ERROR_RETRY_INTERVAL || '600', 10),
 };
 
 /**
