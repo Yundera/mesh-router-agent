@@ -74,6 +74,7 @@ async function main() {
     publicIp,
     config.TARGET_PORT,
     config.ROUTE_PRIORITY,
+    'agent',  // Source identifier for route replacement
     healthCheck
   );
 

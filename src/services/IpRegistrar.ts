@@ -18,6 +18,7 @@ export interface Route {
   port: number;
   priority: number;
   healthCheck?: HealthCheckConfig;
+  source: string;
 }
 
 export interface RouteRegistrationResult {
@@ -219,9 +220,10 @@ export function buildRoute(
   ip: string,
   port: number,
   priority: number,
+  source: string,
   healthCheck?: HealthCheckConfig
 ): Route {
-  const route: Route = { ip, port, priority };
+  const route: Route = { ip, port, priority, source };
   if (healthCheck) {
     route.healthCheck = healthCheck;
   }
