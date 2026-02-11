@@ -17,7 +17,7 @@ interface EnvConfig {
   PROVIDER: string;
   /** Public IP to register (empty = auto-detect) */
   PUBLIC_IP: string;
-  /** Target port where Caddy listens for incoming traffic (default: 443) */
+  /** Target port where Caddy listens for incoming traffic (default: 10443) */
   TARGET_PORT: number;
   /** Route priority (lower = higher priority, default: 1 for direct connection) */
   ROUTE_PRIORITY: number;
@@ -41,7 +41,7 @@ interface EnvConfig {
 export const config: EnvConfig = {
   PROVIDER: process.env.PROVIDER || '',
   PUBLIC_IP: process.env.PUBLIC_IP || '',
-  TARGET_PORT: parseInt(process.env.TARGET_PORT || '443', 10),
+  TARGET_PORT: parseInt(process.env.TARGET_PORT || '10443', 10),
   ROUTE_PRIORITY: parseInt(process.env.ROUTE_PRIORITY || '1', 10),
   REFRESH_INTERVAL: parseInt(process.env.REFRESH_INTERVAL || process.env.HEARTBEAT_INTERVAL || '300', 10),
   HEALTH_CHECK_PATH: process.env.HEALTH_CHECK_PATH || '',
