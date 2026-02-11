@@ -20,7 +20,9 @@ This folder contains everything needed to run mesh-router-agent in a development
 2. Edit `.env` with your configuration:
    - `PROVIDER`: Your provider connection string (`<backend_url>,<userid>,<signature>`)
    - `PUBLIC_IP`: (Optional) Your public IP, leave empty to auto-detect
-   - `HEARTBEAT_INTERVAL`: (Optional) Heartbeat interval in seconds (default: 1800)
+   - `REFRESH_INTERVAL`: (Optional) Route refresh interval in seconds (default: 300)
+   - `TARGET_PORT`: (Optional) Port where Caddy listens (default: 443)
+   - `ROUTE_PRIORITY`: (Optional) Route priority, lower = higher priority (default: 1)
 
 ## Commands
 

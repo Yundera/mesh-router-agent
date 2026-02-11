@@ -15,6 +15,25 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 
 ## Configuration
 
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PROVIDER` | Yes | - | Connection string `<backend_url>,<userid>,<signature>` |
+| `PUBLIC_IP` | No | auto-detect | Public IP to register (leave empty to auto-detect) |
+| `TARGET_PORT` | No | 443 | Port where Caddy listens for incoming traffic |
+| `ROUTE_PRIORITY` | No | 1 | Route priority (lower = higher priority) |
+| `REFRESH_INTERVAL` | No | 300 | Route refresh interval in seconds (5 minutes) |
+| `HEALTH_CHECK_PATH` | No | - | Optional health check HTTP path (e.g., `/.well-known/health`) |
+| `HEALTH_CHECK_HOST` | No | - | Optional health check Host header override |
+| `CERT_KEY_PATH` | No | `./data/key.pem` | Path to store the agent's private key |
+| `CERT_PATH` | No | `./data/cert.pem` | Path to store the agent's certificate |
+| `CA_CERT_PATH` | No | `./data/ca-cert.pem` | Path to store the CA certificate |
+
+> **Note**: `HEARTBEAT_INTERVAL` is deprecated. Use `REFRESH_INTERVAL` instead.
+
+### Example Configuration
+
 ```env
 # Provider connection string: <backend_url>,<userid>,<signature>
 PROVIDER=https://api.nsl.sh,<userid>,<signature>
@@ -22,8 +41,17 @@ PROVIDER=https://api.nsl.sh,<userid>,<signature>
 # Public IP to register (leave empty to auto-detect)
 PUBLIC_IP=
 
-# Heartbeat interval in seconds (default: 1800 = 30 minutes)
-HEARTBEAT_INTERVAL=1800
+# Route refresh interval in seconds (default: 300 = 5 minutes)
+REFRESH_INTERVAL=300
+
+# Target port where Caddy listens (default: 443)
+TARGET_PORT=443
+
+# Route priority (default: 1 for direct connection)
+ROUTE_PRIORITY=1
+
+# Optional health check configuration
+HEALTH_CHECK_PATH=/.well-known/health
 ```
 
 ### Connection String Format
