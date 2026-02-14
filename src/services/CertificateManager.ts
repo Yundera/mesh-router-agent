@@ -92,8 +92,11 @@ function generateCSR(privateKeyPem: string, userId: string): string {
   csr.publicKey = publicKey;
 
   // Set subject with CN=userId
+  // Use UTF8String encoding (tag=12) to support special characters like '@' in userId
+  // PrintableString (default) doesn't allow '@' and causes x509 validation errors in Caddy/Go
+  const UTF8_STRING_TAG = 12; // forge.asn1.Type.UTF8
   csr.setSubject([
-    { name: 'commonName', value: userId },
+    { name: 'commonName', value: userId, valueTagClass: UTF8_STRING_TAG as forge.asn1.Class },
   ]);
 
   // Sign the CSR with the private key
