@@ -1,7 +1,27 @@
+# Dependencies (rebuilt in container)
 node_modules
-dist
+
+# Environment files
 .env
+.env.*
 *.log
+
+# Git
 .git
 .gitignore
+
+# Documentation
 README.md
+*.md
+
+# Development
+dev/
+src/tests/
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts we don't need
+dist/**/*.d.ts
+dist/**/*.js.map
