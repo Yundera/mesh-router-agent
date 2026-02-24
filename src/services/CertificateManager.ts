@@ -107,10 +107,14 @@ function generateCSR(privateKeyPem: string, userId: string): string {
 
 /**
  * Request a certificate from the backend CA
+ * @param provider - Provider configuration with backend URL and credentials
+ * @param keyPem - Private key in PEM format
+ * @param publicIp - Public IP address to include as SAN (for nip.io support)
  */
 export async function requestCertificate(
   provider: ProviderConfig,
-  keyPem: string
+  keyPem: string,
+  publicIp: string
 ): Promise<CertificateState> {
   const { backendUrl, userId, signature } = provider;
 
@@ -120,6 +124,7 @@ export async function requestCertificate(
   const url = `${backendUrl}/router/api/cert/${encodeURIComponent(userId)}/${encodeURIComponent(signature)}`;
 
   console.log(`[Cert] Requesting certificate from ${backendUrl}...`);
+  console.log(`[Cert] Including nip.io SAN for IP: ${publicIp}`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), HTTP_TIMEOUT);
@@ -130,7 +135,7 @@ export async function requestCertificate(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ csr: csrPem }),
+      body: JSON.stringify({ csr: csrPem, publicIp }),
       signal: controller.signal,
     });
 

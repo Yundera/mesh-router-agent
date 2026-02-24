@@ -77,6 +77,10 @@ async function main() {
       }
       console.log('Backend is available!');
 
+      // Detect public IP first (needed for certificate SAN)
+      const publicIp = config.PUBLIC_IP || (await detectPublicIp());
+      console.log(`\nDetected public IP: ${publicIp}`);
+
       // Certificate management
       console.log('\nInitializing certificate...');
       certState = loadCertificateState();
@@ -85,14 +89,10 @@ async function main() {
         const reason = !certState ? 'no certificate found' : `renewal needed (expires in ${formatTimeRemaining(certState.expiresAt)})`;
         console.log(`[Cert] Requesting new certificate: ${reason}`);
         const keyPem = await ensureKeyPair();
-        certState = await requestCertificate(provider, keyPem);
+        certState = await requestCertificate(provider, keyPem, publicIp);
       } else {
         console.log(`[Cert] Certificate valid, expires in ${formatTimeRemaining(certState.expiresAt)}`);
       }
-
-      // Detect public IP
-      const publicIp = config.PUBLIC_IP || (await detectPublicIp());
-      console.log(`\nDetected public IP: ${publicIp}`);
 
       // Build route
       route = buildRoute(
@@ -132,15 +132,15 @@ async function main() {
     await sleep(config.REFRESH_INTERVAL * 1000);
 
     try {
+      // Re-detect IP in case it changed
+      const currentIp = config.PUBLIC_IP || (await detectPublicIp());
+
       // Check certificate renewal
       if (certState && needsRenewal(certState.expiresAt)) {
         console.log(`[${new Date().toISOString()}] Certificate renewal needed (expires in ${formatTimeRemaining(certState.expiresAt)})`);
         const keyPem = await ensureKeyPair();
-        certState = await requestCertificate(provider, keyPem);
+        certState = await requestCertificate(provider, keyPem, currentIp);
       }
-
-      // Re-detect IP in case it changed
-      const currentIp = config.PUBLIC_IP || (await detectPublicIp());
 
       if (route && currentIp !== route.ip) {
         console.log(`[${new Date().toISOString()}] IP changed: ${route.ip} -> ${currentIp}`);
