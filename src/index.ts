@@ -8,7 +8,6 @@ import {
   Route,
 } from './services/IpRegistrar.js';
 import {
-  loadCertificateState,
   ensureKeyPair,
   requestCertificate,
   needsRenewal,
@@ -81,18 +80,12 @@ async function main() {
       const publicIp = config.PUBLIC_IP || (await detectPublicIp());
       console.log(`\nDetected public IP: ${publicIp}`);
 
-      // Certificate management
+      // Certificate management - always request fresh cert at startup
+      // This ensures we get the latest CA and certificate extensions (e.g., nip.io SAN)
       console.log('\nInitializing certificate...');
-      certState = loadCertificateState();
-
-      if (!certState || needsRenewal(certState.expiresAt)) {
-        const reason = !certState ? 'no certificate found' : `renewal needed (expires in ${formatTimeRemaining(certState.expiresAt)})`;
-        console.log(`[Cert] Requesting new certificate: ${reason}`);
-        const keyPem = await ensureKeyPair();
-        certState = await requestCertificate(provider, keyPem, publicIp);
-      } else {
-        console.log(`[Cert] Certificate valid, expires in ${formatTimeRemaining(certState.expiresAt)}`);
-      }
+      console.log('[Cert] Requesting new certificate at startup...');
+      const keyPem = await ensureKeyPair();
+      certState = await requestCertificate(provider, keyPem, publicIp);
 
       // Build route
       route = buildRoute(
