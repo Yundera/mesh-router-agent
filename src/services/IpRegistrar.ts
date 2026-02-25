@@ -17,6 +17,7 @@ export interface Route {
   ip: string;
   port: number;
   priority: number;
+  scheme?: "http" | "https";
   healthCheck?: HealthCheckConfig;
   source: string;
 }
@@ -221,9 +222,13 @@ export function buildRoute(
   port: number,
   priority: number,
   source: string,
-  healthCheck?: HealthCheckConfig
+  healthCheck?: HealthCheckConfig,
+  scheme?: "http" | "https"
 ): Route {
   const route: Route = { ip, port, priority, source };
+  if (scheme) {
+    route.scheme = scheme;
+  }
   if (healthCheck) {
     route.healthCheck = healthCheck;
   }

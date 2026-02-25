@@ -44,7 +44,8 @@ async function main() {
 
   console.log(`Backend URL: ${provider.backendUrl}`);
   console.log(`User ID: ${provider.userId}`);
-  console.log(`Target port: ${config.TARGET_PORT}`);
+  console.log(`Target port HTTPS: ${config.TARGET_PORT_HTTPS}`);
+  console.log(`Target port HTTP: ${config.TARGET_PORT_HTTP}`);
   console.log(`Route priority: ${config.ROUTE_PRIORITY}`);
   console.log(`Refresh interval: ${config.REFRESH_INTERVAL}s (${Math.round(config.REFRESH_INTERVAL / 60)} min)`);
   console.log(`Error retry interval: ${config.ERROR_RETRY_INTERVAL}s (${Math.round(config.ERROR_RETRY_INTERVAL / 60)} min)`);
@@ -55,7 +56,7 @@ async function main() {
   // Initialization with retry loop
   let initialized = false;
   let certState: CertificateState | null = null;
-  let route: Route | null = null;
+  let routes: Route[] = [];
 
   while (!initialized) {
     try {
@@ -87,24 +88,37 @@ async function main() {
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build route
-      route = buildRoute(
-        publicIp,
-        config.TARGET_PORT,
-        config.ROUTE_PRIORITY,
-        'agent',
-        healthCheck
-      );
+      // Build dual routes: HTTPS (port 443) and HTTP (port 80)
+      routes = [
+        buildRoute(
+          publicIp,
+          config.TARGET_PORT_HTTPS,
+          config.ROUTE_PRIORITY,
+          'agent',
+          healthCheck,
+          'https'
+        ),
+        buildRoute(
+          publicIp,
+          config.TARGET_PORT_HTTP,
+          config.ROUTE_PRIORITY,
+          'agent',
+          undefined, // No health check for HTTP route
+          'http'
+        ),
+      ];
 
       // Initial route registration
-      console.log('\nRegistering route...');
-      const result = await registerRoutes(provider, [route]);
+      console.log('\nRegistering routes...');
+      const result = await registerRoutes(provider, routes);
 
       if (!result.success) {
         throw new Error(`Route registration failed: ${result.error}`);
       }
 
-      console.log(`[${new Date().toISOString()}] Route registered: ${route.ip}:${route.port} (priority: ${route.priority})`);
+      for (const route of routes) {
+        console.log(`[${new Date().toISOString()}] Route registered: ${route.ip}:${route.port} (scheme: ${route.scheme}, priority: ${route.priority})`);
+      }
       if (result.domain) {
         console.log(`  Domain: ${result.domain}`);
       }
@@ -135,15 +149,20 @@ async function main() {
         certState = await requestCertificate(provider, keyPem, currentIp);
       }
 
-      if (route && currentIp !== route.ip) {
-        console.log(`[${new Date().toISOString()}] IP changed: ${route.ip} -> ${currentIp}`);
-        route.ip = currentIp;
+      // Update IP in all routes if changed
+      if (routes.length > 0 && currentIp !== routes[0].ip) {
+        console.log(`[${new Date().toISOString()}] IP changed: ${routes[0].ip} -> ${currentIp}`);
+        for (const route of routes) {
+          route.ip = currentIp;
+        }
       }
 
-      if (route) {
-        const result = await registerRoutes(provider, [route]);
+      if (routes.length > 0) {
+        const result = await registerRoutes(provider, routes);
         if (result.success) {
-          console.log(`[${new Date().toISOString()}] Route registered: ${route.ip}:${route.port} (priority: ${route.priority})`);
+          for (const route of routes) {
+            console.log(`[${new Date().toISOString()}] Route registered: ${route.ip}:${route.port} (scheme: ${route.scheme}, priority: ${route.priority})`);
+          }
           if (result.domain) {
             console.log(`  Domain: ${result.domain}`);
           }

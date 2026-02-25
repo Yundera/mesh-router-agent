@@ -17,7 +17,11 @@ interface EnvConfig {
   PROVIDER: string;
   /** Public IP to register (empty = auto-detect) */
   PUBLIC_IP: string;
-  /** Target port where Caddy listens for incoming traffic (default: 10443) */
+  /** Target port for HTTPS traffic (default: 443) */
+  TARGET_PORT_HTTPS: number;
+  /** Target port for HTTP traffic (default: 80) */
+  TARGET_PORT_HTTP: number;
+  /** @deprecated Use TARGET_PORT_HTTPS instead. Kept for backward compat. */
   TARGET_PORT: number;
   /** Route priority (lower = higher priority, default: 1 for direct connection) */
   ROUTE_PRIORITY: number;
@@ -40,10 +44,17 @@ interface EnvConfig {
   ERROR_RETRY_INTERVAL: number;
 }
 
+// Parse TARGET_PORT with backward compat: TARGET_PORT defaults to TARGET_PORT_HTTPS
+const legacyTargetPort = process.env.TARGET_PORT ? parseInt(process.env.TARGET_PORT, 10) : null;
+
 export const config: EnvConfig = {
   PROVIDER: process.env.PROVIDER || '',
   PUBLIC_IP: process.env.PUBLIC_IP || '',
-  TARGET_PORT: parseInt(process.env.TARGET_PORT || '10443', 10),
+  // New dual-port config
+  TARGET_PORT_HTTPS: parseInt(process.env.TARGET_PORT_HTTPS || '443', 10),
+  TARGET_PORT_HTTP: parseInt(process.env.TARGET_PORT_HTTP || '80', 10),
+  // Legacy: TARGET_PORT defaults to TARGET_PORT_HTTPS value for backward compat
+  TARGET_PORT: legacyTargetPort ?? parseInt(process.env.TARGET_PORT_HTTPS || '443', 10),
   ROUTE_PRIORITY: parseInt(process.env.ROUTE_PRIORITY || '1', 10),
   REFRESH_INTERVAL: parseInt(process.env.REFRESH_INTERVAL || process.env.HEARTBEAT_INTERVAL || '300', 10),
   HEALTH_CHECK_PATH: process.env.HEALTH_CHECK_PATH || '',
