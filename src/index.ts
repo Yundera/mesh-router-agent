@@ -2,6 +2,7 @@ import { config, parseProvider, getHealthCheckConfig } from './config/EnvConfig.
 import {
   registerRoutes,
   buildRoute,
+  buildDomainRoute,
   detectPublicIp,
   checkBackendHealth,
   checkBackendVersion,
@@ -88,12 +89,15 @@ async function main() {
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build dual routes: HTTPS (port 443) and HTTP (port 80)
+      // Build routes: IP routes (priority 1), sslip.io (priority 2), nip.io (priority 3)
+      // Each type has both HTTPS and HTTP variants
+      const basePriority = config.ROUTE_PRIORITY;
       routes = [
+        // IP routes - highest priority (direct connection)
         buildRoute(
           publicIp,
           config.TARGET_PORT_HTTPS,
-          config.ROUTE_PRIORITY,
+          basePriority,
           'agent',
           healthCheck,
           'https'
@@ -101,10 +105,44 @@ async function main() {
         buildRoute(
           publicIp,
           config.TARGET_PORT_HTTP,
-          config.ROUTE_PRIORITY,
+          basePriority,
           'agent',
           undefined, // No health check for HTTP route
           'http'
+        ),
+        // sslip.io domain routes - medium priority
+        buildDomainRoute(
+          publicIp,
+          config.TARGET_PORT_HTTPS,
+          basePriority + 1,
+          'agent',
+          'https',
+          'sslip.io'
+        ),
+        buildDomainRoute(
+          publicIp,
+          config.TARGET_PORT_HTTP,
+          basePriority + 1,
+          'agent',
+          'http',
+          'sslip.io'
+        ),
+        // nip.io domain routes - lowest priority (fallback)
+        buildDomainRoute(
+          publicIp,
+          config.TARGET_PORT_HTTPS,
+          basePriority + 2,
+          'agent',
+          'https',
+          'nip.io'
+        ),
+        buildDomainRoute(
+          publicIp,
+          config.TARGET_PORT_HTTP,
+          basePriority + 2,
+          'agent',
+          'http',
+          'nip.io'
         ),
       ];
 
@@ -152,9 +190,16 @@ async function main() {
       // Update IP in all routes if changed
       if (routes.length > 0 && currentIp !== routes[0].ip) {
         console.log(`[${new Date().toISOString()}] IP changed: ${routes[0].ip} -> ${currentIp}`);
-        for (const route of routes) {
-          route.ip = currentIp;
-        }
+        // Rebuild all routes with new IP (domain routes need domain field updated)
+        const basePriority = config.ROUTE_PRIORITY;
+        routes = [
+          buildRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', healthCheck, 'https'),
+          buildRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', undefined, 'http'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 1, 'agent', 'https', 'sslip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 1, 'agent', 'http', 'sslip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 2, 'agent', 'https', 'nip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 2, 'agent', 'http', 'nip.io'),
+        ];
       }
 
       if (routes.length > 0) {

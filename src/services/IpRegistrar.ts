@@ -20,6 +20,8 @@ export interface Route {
   scheme?: "http" | "https";
   healthCheck?: HealthCheckConfig;
   source: string;
+  type?: "ip" | "domain";
+  domain?: string;
 }
 
 export interface RouteRegistrationResult {
@@ -233,6 +235,50 @@ export function buildRoute(
     route.healthCheck = healthCheck;
   }
   return route;
+}
+
+/**
+ * Convert IP address to dash-separated format for DNS services.
+ * IPv6: 2001:bc8:3021::1 → 2001-bc8-3021--1
+ * IPv4: 192.168.1.1 → 192-168-1-1
+ */
+export function ipToDash(ip: string): string {
+  if (ip.includes(':')) {
+    // IPv6: replace colons with dashes
+    return ip.replace(/:/g, '-');
+  }
+  // IPv4: replace dots with dashes
+  return ip.replace(/\./g, '-');
+}
+
+/**
+ * Build a domain route object for DNS services like sslip.io or nip.io.
+ * Domain routes are pre-validated by the backend for connectivity.
+ *
+ * @param ip - The IP address
+ * @param port - The port number
+ * @param priority - Route priority (lower = higher priority)
+ * @param source - Route source identifier
+ * @param scheme - Protocol scheme (http or https)
+ * @param dnsService - DNS service to use (sslip.io or nip.io)
+ */
+export function buildDomainRoute(
+  ip: string,
+  port: number,
+  priority: number,
+  source: string,
+  scheme: "http" | "https",
+  dnsService: "sslip.io" | "nip.io"
+): Route {
+  return {
+    ip,
+    port,
+    priority,
+    source,
+    scheme,
+    type: "domain",
+    domain: `${ipToDash(ip)}.${dnsService}`,
+  };
 }
 
 /**
