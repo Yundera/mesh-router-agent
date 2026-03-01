@@ -1,4 +1,4 @@
-import { ProviderConfig, HealthCheckConfig } from '../config/EnvConfig.js';
+import { ProviderConfig } from '../config/EnvConfig.js';
 import { detectPublicIpViaStun } from './StunClient.js';
 
 /** HTTP request timeout in milliseconds */
@@ -17,8 +17,8 @@ export interface Route {
   ip: string;
   port: number;
   priority: number;
-  scheme?: "http" | "https";
-  healthCheck?: HealthCheckConfig;
+  scheme?: "http" | "https";       // Ingress protocol scheme - what traffic this route accepts
+  targetScheme?: "http" | "https"; // Target protocol scheme - what protocol to use when connecting to backend
   source: string;
   type?: "ip" | "domain";
   domain?: string;
@@ -177,7 +177,6 @@ export async function registerIp(
  *
  * This replaces the old registerIp function and supports:
  * - Multiple routes with priority
- * - Optional health check configuration
  * - TTL-based expiry (routes must be refreshed every 5 minutes)
  */
 export async function registerRoutes(
@@ -224,15 +223,11 @@ export function buildRoute(
   port: number,
   priority: number,
   source: string,
-  healthCheck?: HealthCheckConfig,
   scheme?: "http" | "https"
 ): Route {
   const route: Route = { ip, port, priority, source };
   if (scheme) {
     route.scheme = scheme;
-  }
-  if (healthCheck) {
-    route.healthCheck = healthCheck;
   }
   return route;
 }

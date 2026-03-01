@@ -1,4 +1,4 @@
-import { config, parseProvider, getHealthCheckConfig } from './config/EnvConfig.js';
+import { config, parseProvider } from './config/EnvConfig.js';
 import {
   registerRoutes,
   buildRoute,
@@ -41,7 +41,6 @@ async function main() {
   }
 
   const provider = parseProvider(config.PROVIDER);
-  const healthCheck = getHealthCheckConfig();
 
   console.log(`Backend URL: ${provider.backendUrl}`);
   console.log(`User ID: ${provider.userId}`);
@@ -50,9 +49,6 @@ async function main() {
   console.log(`Route priority: ${config.ROUTE_PRIORITY}`);
   console.log(`Refresh interval: ${config.REFRESH_INTERVAL}s (${Math.round(config.REFRESH_INTERVAL / 60)} min)`);
   console.log(`Error retry interval: ${config.ERROR_RETRY_INTERVAL}s (${Math.round(config.ERROR_RETRY_INTERVAL / 60)} min)`);
-  if (healthCheck) {
-    console.log(`Health check: ${healthCheck.path}${healthCheck.host ? ` (host: ${healthCheck.host})` : ''}`);
-  }
 
   // Initialization with retry loop
   let initialized = false;
@@ -94,22 +90,8 @@ async function main() {
       const basePriority = config.ROUTE_PRIORITY;
       routes = [
         // IP routes - highest priority (direct connection)
-        buildRoute(
-          publicIp,
-          config.TARGET_PORT_HTTPS,
-          basePriority,
-          'agent',
-          healthCheck,
-          'https'
-        ),
-        buildRoute(
-          publicIp,
-          config.TARGET_PORT_HTTP,
-          basePriority,
-          'agent',
-          undefined, // No health check for HTTP route
-          'http'
-        ),
+        buildRoute(publicIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https'),
+        buildRoute(publicIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http'),
         // sslip.io domain routes - medium priority
         buildDomainRoute(
           publicIp,
@@ -193,8 +175,8 @@ async function main() {
         // Rebuild all routes with new IP (domain routes need domain field updated)
         const basePriority = config.ROUTE_PRIORITY;
         routes = [
-          buildRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', healthCheck, 'https'),
-          buildRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', undefined, 'http'),
+          buildRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https'),
+          buildRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http'),
           buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 1, 'agent', 'https', 'sslip.io'),
           buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 1, 'agent', 'http', 'sslip.io'),
           buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 2, 'agent', 'https', 'nip.io'),
