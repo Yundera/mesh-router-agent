@@ -85,35 +85,18 @@ async function main() {
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build routes: IP routes (priority 1), sslip.io (priority 2), nip.io (priority 3)
+      // Build routes: IP routes (priority 1), nip.io (priority 2)
       // Each type has both HTTPS and HTTP variants
       const basePriority = config.ROUTE_PRIORITY;
       routes = [
         // IP routes - highest priority (direct connection)
         buildRoute(publicIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https'),
         buildRoute(publicIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http'),
-        // sslip.io domain routes - medium priority
+        // nip.io domain routes - for CF Worker (cannot fetch IPs directly)
         buildDomainRoute(
           publicIp,
           config.TARGET_PORT_HTTPS,
           basePriority + 1,
-          'agent',
-          'https',
-          'sslip.io'
-        ),
-        buildDomainRoute(
-          publicIp,
-          config.TARGET_PORT_HTTP,
-          basePriority + 1,
-          'agent',
-          'http',
-          'sslip.io'
-        ),
-        // nip.io domain routes - lowest priority (fallback)
-        buildDomainRoute(
-          publicIp,
-          config.TARGET_PORT_HTTPS,
-          basePriority + 2,
           'agent',
           'https',
           'nip.io'
@@ -121,7 +104,7 @@ async function main() {
         buildDomainRoute(
           publicIp,
           config.TARGET_PORT_HTTP,
-          basePriority + 2,
+          basePriority + 1,
           'agent',
           'http',
           'nip.io'
@@ -177,10 +160,8 @@ async function main() {
         routes = [
           buildRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https'),
           buildRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 1, 'agent', 'https', 'sslip.io'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 1, 'agent', 'http', 'sslip.io'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 2, 'agent', 'https', 'nip.io'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 2, 'agent', 'http', 'nip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 1, 'agent', 'https', 'nip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 1, 'agent', 'http', 'nip.io'),
         ];
       }
 

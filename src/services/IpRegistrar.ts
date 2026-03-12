@@ -247,7 +247,7 @@ export function ipToDash(ip: string): string {
 }
 
 /**
- * Build a domain route object for DNS services like sslip.io or nip.io.
+ * Build a domain route object for nip.io DNS service.
  * Domain routes are pre-validated by the backend for connectivity.
  *
  * @param ip - The IP address
@@ -255,7 +255,7 @@ export function ipToDash(ip: string): string {
  * @param priority - Route priority (lower = higher priority)
  * @param source - Route source identifier
  * @param scheme - Protocol scheme (http or https)
- * @param dnsService - DNS service to use (sslip.io or nip.io)
+ * @param dnsService - DNS service to use (nip.io)
  */
 export function buildDomainRoute(
   ip: string,
@@ -263,7 +263,7 @@ export function buildDomainRoute(
   priority: number,
   source: string,
   scheme: "http" | "https",
-  dnsService: "sslip.io" | "nip.io"
+  dnsService: "nip.io"
 ): Route {
   return {
     ip,
