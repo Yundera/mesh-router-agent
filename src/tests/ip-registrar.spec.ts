@@ -114,12 +114,4 @@ describe("IpRegistrar URL construction", () => {
     expect(url).to.include("user%2Btest%40example");
   });
 
-  it("should construct correct heartbeat URL", () => {
-    const backendUrl = "https://api.nsl.sh";
-    const userId = "user123";
-    const signature = "sig456";
-
-    const expectedUrl = `${backendUrl}/heartbeat/${encodeURIComponent(userId)}/${encodeURIComponent(signature)}`;
-    expect(expectedUrl).to.equal("https://api.nsl.sh/heartbeat/user123/sig456");
-  });
 });
