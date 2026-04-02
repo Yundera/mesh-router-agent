@@ -1,7 +1,6 @@
 import { config, parseProvider } from './config/EnvConfig.js';
 import {
   registerRoutes,
-  buildRoute,
   buildDomainRoute,
   detectPublicIp,
   checkBackendHealth,
@@ -85,30 +84,13 @@ async function main() {
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build routes: IP routes (priority 1), nip.io (priority 2)
-      // Each type has both HTTPS and HTTP variants
+      // Build nip.io domain routes (HTTPS and HTTP)
+      // Raw IP routes are not registered because Caddy serves its own auto-TLS cert
+      // for non-SNI connections, which doesn't chain to our CA.
       const basePriority = config.ROUTE_PRIORITY;
       routes = [
-        // IP routes - highest priority (direct connection)
-        buildRoute(publicIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https'),
-        buildRoute(publicIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http'),
-        // nip.io domain routes - for CF Worker (cannot fetch IPs directly)
-        buildDomainRoute(
-          publicIp,
-          config.TARGET_PORT_HTTPS,
-          basePriority + 1,
-          'agent',
-          'https',
-          'nip.io'
-        ),
-        buildDomainRoute(
-          publicIp,
-          config.TARGET_PORT_HTTP,
-          basePriority + 1,
-          'agent',
-          'http',
-          'nip.io'
-        ),
+        buildDomainRoute(publicIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https', 'nip.io'),
+        buildDomainRoute(publicIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http', 'nip.io'),
       ];
 
       // Initial route registration
@@ -155,13 +137,11 @@ async function main() {
       // Update IP in all routes if changed
       if (routes.length > 0 && currentIp !== routes[0].ip) {
         console.log(`[${new Date().toISOString()}] IP changed: ${routes[0].ip} -> ${currentIp}`);
-        // Rebuild all routes with new IP (domain routes need domain field updated)
+        // Rebuild all routes with new IP
         const basePriority = config.ROUTE_PRIORITY;
         routes = [
-          buildRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https'),
-          buildRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority + 1, 'agent', 'https', 'nip.io'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority + 1, 'agent', 'http', 'nip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https', 'nip.io'),
+          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http', 'nip.io'),
         ];
       }
 
