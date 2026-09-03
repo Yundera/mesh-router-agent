@@ -33,6 +33,21 @@ interface EnvConfig {
   CA_CERT_PATH: string;
   /** Retry interval in seconds when initialization fails (default: 600 = 10 minutes) */
   ERROR_RETRY_INTERVAL: number;
+  /**
+   * Host serving TARGET_PORT_HTTPS on the local stack — the reverse proxy this
+   * agent is advertising, reached over the shared docker network (NOT
+   * localhost: the agent has its own network namespace).
+   */
+  TARGET_HOST: string;
+  /**
+   * How long to wait for that host to serve our certificate before registering
+   * routes, in seconds (default: 120). 0 disables the wait entirely and
+   * restores the pre-gate behaviour. Timing out is not fatal — see
+   * UpstreamReadiness.waitForUpstreamTls.
+   */
+  READINESS_TIMEOUT: number;
+  /** Delay between readiness probes in seconds (default: 2) */
+  READINESS_INTERVAL: number;
 }
 
 // Parse TARGET_PORT with backward compat: TARGET_PORT defaults to TARGET_PORT_HTTPS
@@ -56,6 +71,10 @@ export const config: EnvConfig = {
   CA_CERT_PATH: process.env.CA_CERT_PATH || './data/ca-cert.pem',
   // Retry interval on errors
   ERROR_RETRY_INTERVAL: parseInt(process.env.ERROR_RETRY_INTERVAL || '600', 10),
+  // Upstream readiness gate
+  TARGET_HOST: process.env.TARGET_HOST || 'mesh-router-caddy',
+  READINESS_TIMEOUT: parseInt(process.env.READINESS_TIMEOUT || '120', 10),
+  READINESS_INTERVAL: parseInt(process.env.READINESS_INTERVAL || '2', 10),
 };
 
 /**

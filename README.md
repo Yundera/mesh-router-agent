@@ -33,6 +33,10 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 | `CERT_KEY_PATH` | No | `./data/key.pem` | Path to store the agent's private key |
 | `CERT_PATH` | No | `./data/cert.pem` | Path to store the agent's certificate |
 | `CA_CERT_PATH` | No | `./data/ca-cert.pem` | Path to store the CA certificate |
+| `ERROR_RETRY_INTERVAL` | No | 600 | Retry interval in seconds after a failed initialization |
+| `TARGET_HOST` | No | `mesh-router-caddy` | Host serving `TARGET_PORT_HTTPS`, reached over the shared docker network |
+| `READINESS_TIMEOUT` | No | 120 | Seconds to wait for `TARGET_HOST` to serve our certificate before registering routes. `0` disables the wait. Timing out is not fatal — the agent registers anyway |
+| `READINESS_INTERVAL` | No | 2 | Seconds between readiness probes |
 
 > **Note**: `HEARTBEAT_INTERVAL` is deprecated. Use `REFRESH_INTERVAL` instead.
 

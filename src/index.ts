@@ -14,6 +14,7 @@ import {
   formatTimeRemaining,
   CertificateState,
 } from './services/CertificateManager.js';
+import { waitForUpstreamTls } from './services/UpstreamReadiness.js';
 
 const VERSION = process.env.BUILD_VERSION || '2.0.0';
 
@@ -48,6 +49,11 @@ async function main() {
   console.log(`Route priority: ${config.ROUTE_PRIORITY}`);
   console.log(`Refresh interval: ${config.REFRESH_INTERVAL}s (${Math.round(config.REFRESH_INTERVAL / 60)} min)`);
   console.log(`Error retry interval: ${config.ERROR_RETRY_INTERVAL}s (${Math.round(config.ERROR_RETRY_INTERVAL / 60)} min)`);
+  console.log(
+    config.READINESS_TIMEOUT > 0
+      ? `Upstream readiness: ${config.TARGET_HOST}:${config.TARGET_PORT_HTTPS}, up to ${config.READINESS_TIMEOUT}s`
+      : 'Upstream readiness: disabled (READINESS_TIMEOUT=0)',
+  );
 
   // Initialization with retry loop
   let initialized = false;
@@ -92,6 +98,37 @@ async function main() {
         buildDomainRoute(publicIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https', 'nip.io'),
         buildDomainRoute(publicIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http', 'nip.io'),
       ];
+
+      // Do not announce an endpoint before it is actually being served.
+      //
+      // mesh-router-caddy is what answers :443, and compose starts it AFTER
+      // this agent (it depends_on us for the certificate above), so at this
+      // point it may still be seconds away from binding. The backend validates
+      // every route by connecting, so registering now is a coin flip; losing it
+      // costs the box its direct route for a full ERROR_RETRY_INTERVAL.
+      // UpstreamReadiness carries the full account.
+      //
+      // Not reaching readiness is deliberately NOT an error: we log it and
+      // register anyway, which is exactly the behaviour that predates this gate.
+      if (config.READINESS_TIMEOUT > 0) {
+        const httpsRoute = routes.find((route) => route.scheme === 'https' && route.domain);
+        if (httpsRoute?.domain) {
+          console.log(`\nWaiting for ${config.TARGET_HOST}:${config.TARGET_PORT_HTTPS} to serve ${httpsRoute.domain}...`);
+          const readiness = await waitForUpstreamTls({
+            host: config.TARGET_HOST,
+            port: config.TARGET_PORT_HTTPS,
+            serverName: httpsRoute.domain,
+            caCertificate: certState.caCertificate,
+            timeoutMs: config.READINESS_TIMEOUT * 1000,
+            intervalMs: config.READINESS_INTERVAL * 1000,
+          });
+          if (readiness.ready) {
+            console.log(`[Readiness] upstream serving our certificate after ${(readiness.elapsedMs / 1000).toFixed(1)}s (${readiness.attempts} probe(s))`);
+          } else {
+            console.warn(`[Readiness] upstream not ready after ${(readiness.elapsedMs / 1000).toFixed(1)}s (${readiness.attempts} probes, last error: ${readiness.lastError}) — registering anyway`);
+          }
+        }
+      }
 
       // Initial route registration
       console.log('\nRegistering routes...');
