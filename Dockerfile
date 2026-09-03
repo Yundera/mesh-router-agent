@@ -1,7 +1,7 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -32,7 +32,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-l
 # ============================================
 # Stage 2: Production (minimal alpine)
 # ============================================
-FROM alpine:3.21
+FROM alpine:3.23
 
 # Install only nodejs runtime (no npm/pnpm needed)
 RUN apk add --no-cache nodejs curl ca-certificates
