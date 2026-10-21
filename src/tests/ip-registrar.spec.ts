@@ -1,5 +1,6 @@
 import { describe, it } from "mocha";
 import { expect } from "chai";
+import { buildAgentRoutes } from "../services/IpRegistrar.js";
 
 // Test the IP validation logic (extracted for testing)
 function isValidIPv4(ip: string): boolean {
@@ -114,4 +115,30 @@ describe("IpRegistrar URL construction", () => {
     expect(url).to.include("user%2Btest%40example");
   });
 
+});
+
+describe("buildAgentRoutes", () => {
+  it("registers nip.io routes only without an IP zone", () => {
+    const routes = buildAgentRoutes("80.241.218.30", 443, 80, 1, "");
+    expect(routes.map((r) => [r.domain, r.scheme, r.port, r.priority])).to.deep.equal([
+      ["80-241-218-30.nip.io", "https", 443, 1],
+      ["80-241-218-30.nip.io", "http", 80, 1],
+    ]);
+  });
+
+  it("adds the IP zone routes one priority step behind nip.io", () => {
+    const routes = buildAgentRoutes("80.241.218.30", 443, 80, 1, "ip.inojob.com");
+    expect(routes.map((r) => [r.domain, r.scheme, r.port, r.priority])).to.deep.equal([
+      ["80-241-218-30.nip.io", "https", 443, 1],
+      ["80-241-218-30.nip.io", "http", 80, 1],
+      ["80-241-218-30.ip.inojob.com", "https", 443, 2],
+      ["80-241-218-30.ip.inojob.com", "http", 80, 2],
+    ]);
+    expect(routes.every((r) => r.type === "domain" && r.ip === "80.241.218.30" && r.source === "agent")).to.be.true;
+  });
+
+  it("dashes IPv6 addresses in the IP zone name", () => {
+    const routes = buildAgentRoutes("2001:bc8:3021::1", 443, 80, 1, "ip.nsl.sh");
+    expect(routes[2].domain).to.equal("2001-bc8-3021--1.ip.nsl.sh");
+  });
 });

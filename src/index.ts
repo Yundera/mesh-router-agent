@@ -1,7 +1,7 @@
 import { config, parseProvider } from './config/EnvConfig.js';
 import {
   registerRoutes,
-  buildDomainRoute,
+  buildAgentRoutes,
   detectPublicIp,
   checkBackendHealth,
   checkBackendVersion,
@@ -47,6 +47,7 @@ async function main() {
   console.log(`Target port HTTPS: ${config.TARGET_PORT_HTTPS}`);
   console.log(`Target port HTTP: ${config.TARGET_PORT_HTTP}`);
   console.log(`Route priority: ${config.ROUTE_PRIORITY}`);
+  console.log(`IP zone: ${config.IP_ZONE || '(none, nip.io only)'}`);
   console.log(`Refresh interval: ${config.REFRESH_INTERVAL}s (${Math.round(config.REFRESH_INTERVAL / 60)} min)`);
   console.log(`Error retry interval: ${config.ERROR_RETRY_INTERVAL}s (${Math.round(config.ERROR_RETRY_INTERVAL / 60)} min)`);
   console.log(
@@ -90,14 +91,10 @@ async function main() {
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build nip.io domain routes (HTTPS and HTTP)
+      // Build nip.io domain routes (HTTPS and HTTP), plus IP_ZONE ones when set
       // Raw IP routes are not registered because Caddy serves its own auto-TLS cert
       // for non-SNI connections, which doesn't chain to our CA.
-      const basePriority = config.ROUTE_PRIORITY;
-      routes = [
-        buildDomainRoute(publicIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https', 'nip.io'),
-        buildDomainRoute(publicIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http', 'nip.io'),
-      ];
+      routes = buildAgentRoutes(publicIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, config.IP_ZONE);
 
       // Do not announce an endpoint before it is actually being served.
       //
@@ -175,11 +172,7 @@ async function main() {
       if (routes.length > 0 && currentIp !== routes[0].ip) {
         console.log(`[${new Date().toISOString()}] IP changed: ${routes[0].ip} -> ${currentIp}`);
         // Rebuild all routes with new IP
-        const basePriority = config.ROUTE_PRIORITY;
-        routes = [
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTPS, basePriority, 'agent', 'https', 'nip.io'),
-          buildDomainRoute(currentIp, config.TARGET_PORT_HTTP, basePriority, 'agent', 'http', 'nip.io'),
-        ];
+        routes = buildAgentRoutes(currentIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, config.IP_ZONE);
       }
 
       if (routes.length > 0) {

@@ -247,7 +247,7 @@ export function ipToDash(ip: string): string {
 }
 
 /**
- * Build a domain route object for nip.io DNS service.
+ * Build a domain route object for an IP-encoding DNS service.
  * Domain routes are pre-validated by the backend for connectivity.
  *
  * @param ip - The IP address
@@ -255,7 +255,7 @@ export function ipToDash(ip: string): string {
  * @param priority - Route priority (lower = higher priority)
  * @param source - Route source identifier
  * @param scheme - Protocol scheme (http or https)
- * @param dnsService - DNS service to use (nip.io)
+ * @param dnsService - DNS zone resolving <ip-dashed>.<zone> to the IP (nip.io, or an IP_ZONE like ip.nsl.sh)
  */
 export function buildDomainRoute(
   ip: string,
@@ -263,7 +263,7 @@ export function buildDomainRoute(
   priority: number,
   source: string,
   scheme: "http" | "https",
-  dnsService: "nip.io"
+  dnsService: string
 ): Route {
   return {
     ip,
@@ -274,6 +274,33 @@ export function buildDomainRoute(
     type: "domain",
     domain: `${ipToDash(ip)}.${dnsService}`,
   };
+}
+
+/**
+ * The agent's routes for a public IP: nip.io over HTTPS and HTTP, plus the same pair
+ * on ipZone when one is set. The ipZone routes sit one priority step behind, so the
+ * nip.io routes stay the ones the gateways pick until nip.io is retired; a box whose
+ * ipZone route fails backend validation keeps its nip.io routes (the backend accepts
+ * routes individually).
+ */
+export function buildAgentRoutes(
+  ip: string,
+  httpsPort: number,
+  httpPort: number,
+  priority: number,
+  ipZone: string
+): Route[] {
+  const routes = [
+    buildDomainRoute(ip, httpsPort, priority, 'agent', 'https', 'nip.io'),
+    buildDomainRoute(ip, httpPort, priority, 'agent', 'http', 'nip.io'),
+  ];
+  if (ipZone) {
+    routes.push(
+      buildDomainRoute(ip, httpsPort, priority + 1, 'agent', 'https', ipZone),
+      buildDomainRoute(ip, httpPort, priority + 1, 'agent', 'http', ipZone),
+    );
+  }
+  return routes;
 }
 
 /**

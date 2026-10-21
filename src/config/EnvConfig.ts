@@ -20,6 +20,12 @@ interface EnvConfig {
   TARGET_PORT: number;
   /** Route priority (lower = higher priority, default: 1 for direct connection) */
   ROUTE_PRIORITY: number;
+  /**
+   * nip.io-style zone served by the mesh-router-nameserver (e.g. ip.nsl.sh). When
+   * set, the box also registers <ip-dashed>.<IP_ZONE> domain routes, one priority
+   * step behind the nip.io ones. Empty = nip.io only.
+   */
+  IP_ZONE: string;
   /** Route refresh interval in seconds (default: 300 = 5 minutes) */
   REFRESH_INTERVAL: number;
   // Legacy: kept for backward compatibility, use REFRESH_INTERVAL instead
@@ -62,6 +68,7 @@ export const config: EnvConfig = {
   // Legacy: TARGET_PORT defaults to TARGET_PORT_HTTPS value for backward compat
   TARGET_PORT: legacyTargetPort ?? parseInt(process.env.TARGET_PORT_HTTPS || '443', 10),
   ROUTE_PRIORITY: parseInt(process.env.ROUTE_PRIORITY || '1', 10),
+  IP_ZONE: (process.env.IP_ZONE || '').trim(),
   REFRESH_INTERVAL: parseInt(process.env.REFRESH_INTERVAL || process.env.HEARTBEAT_INTERVAL || '300', 10),
   // Legacy support
   HEARTBEAT_INTERVAL: parseInt(process.env.HEARTBEAT_INTERVAL || '300', 10),
