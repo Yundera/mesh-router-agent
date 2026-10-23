@@ -5,7 +5,7 @@ import tls from 'node:tls';
  * are reachable".
  *
  * WHY THIS EXISTS. Registering a route is a claim: "traffic sent to
- * <ip>.nip.io:443 will be served, with a certificate that chains to the mesh
+ * <ip>.<IP_ZONE or nip.io>:443 will be served, with a certificate that chains to the mesh
  * CA". The backend does not take that on trust — it connects to the address
  * and validates the presented chain against the CA (mesh-router-backend
  * RouteValidator), and if the connection is refused it rejects the route.

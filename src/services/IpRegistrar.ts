@@ -277,11 +277,10 @@ export function buildDomainRoute(
 }
 
 /**
- * The agent's routes for a public IP: nip.io over HTTPS and HTTP, plus the same pair
- * on ipZone when one is set. The ipZone routes sit one priority step behind, so the
- * nip.io routes stay the ones the gateways pick until nip.io is retired; a box whose
- * ipZone route fails backend validation keeps its nip.io routes (the backend accepts
- * routes individually).
+ * The agent's routes for a public IP, over HTTPS and HTTP: on ipZone (our own
+ * nameserver) when one is set, else on nip.io. ipZone replaces nip.io rather than
+ * sitting beside it, so a box with an IP zone depends on no third-party DNS; the box
+ * still serves its sslip.io names, which the CF worker uses as its fallback.
  */
 export function buildAgentRoutes(
   ip: string,
@@ -290,17 +289,11 @@ export function buildAgentRoutes(
   priority: number,
   ipZone: string
 ): Route[] {
-  const routes = [
-    buildDomainRoute(ip, httpsPort, priority, 'agent', 'https', 'nip.io'),
-    buildDomainRoute(ip, httpPort, priority, 'agent', 'http', 'nip.io'),
+  const zone = ipZone || 'nip.io';
+  return [
+    buildDomainRoute(ip, httpsPort, priority, 'agent', 'https', zone),
+    buildDomainRoute(ip, httpPort, priority, 'agent', 'http', zone),
   ];
-  if (ipZone) {
-    routes.push(
-      buildDomainRoute(ip, httpsPort, priority + 1, 'agent', 'https', ipZone),
-      buildDomainRoute(ip, httpPort, priority + 1, 'agent', 'http', ipZone),
-    );
-  }
-  return routes;
 }
 
 /**

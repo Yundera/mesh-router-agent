@@ -22,8 +22,8 @@ interface EnvConfig {
   ROUTE_PRIORITY: number;
   /**
    * nip.io-style zone served by the mesh-router-nameserver (e.g. ip.nsl.sh). When
-   * set, the box also registers <ip-dashed>.<IP_ZONE> domain routes, one priority
-   * step behind the nip.io ones. Empty = nip.io only.
+   * set, the box registers <ip-dashed>.<IP_ZONE> domain routes instead of nip.io
+   * ones. Empty = nip.io.
    */
   IP_ZONE: string;
   /** Route refresh interval in seconds (default: 300 = 5 minutes) */

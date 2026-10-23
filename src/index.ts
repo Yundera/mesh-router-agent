@@ -47,7 +47,7 @@ async function main() {
   console.log(`Target port HTTPS: ${config.TARGET_PORT_HTTPS}`);
   console.log(`Target port HTTP: ${config.TARGET_PORT_HTTP}`);
   console.log(`Route priority: ${config.ROUTE_PRIORITY}`);
-  console.log(`IP zone: ${config.IP_ZONE || '(none, nip.io only)'}`);
+  console.log(`IP zone: ${config.IP_ZONE || '(none, nip.io)'}`);
   console.log(`Refresh interval: ${config.REFRESH_INTERVAL}s (${Math.round(config.REFRESH_INTERVAL / 60)} min)`);
   console.log(`Error retry interval: ${config.ERROR_RETRY_INTERVAL}s (${Math.round(config.ERROR_RETRY_INTERVAL / 60)} min)`);
   console.log(
@@ -91,7 +91,7 @@ async function main() {
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build nip.io domain routes (HTTPS and HTTP), plus IP_ZONE ones when set
+      // Build domain routes (HTTPS and HTTP) on IP_ZONE when set, else nip.io
       // Raw IP routes are not registered because Caddy serves its own auto-TLS cert
       // for non-SNI connections, which doesn't chain to our CA.
       routes = buildAgentRoutes(publicIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, config.IP_ZONE);
