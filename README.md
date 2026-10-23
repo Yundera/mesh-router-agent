@@ -4,16 +4,15 @@ A lightweight Mesh Router agent that registers routes with the mesh-router-backe
 
 ## Purpose
 
-This agent is part of the Mesh Router architecture, designed to reduce latency by allowing direct connections to PCS instances. It registers multiple route types to support both the CF Worker (domain routes) and OpenResty Gateway (IP routes).
+This agent is part of the Mesh Router architecture, designed to reduce latency by allowing direct connections to PCS instances. It registers domain routes: the CF Worker and the OpenResty gateway both use their `ip` field, and the gateway uses `domain` as the TLS server name.
 
 ## How It Works
 
 1. Parses the `PROVIDER` connection string
 2. Detects or uses configured public IP
-3. Registers multiple route types with mesh-router-backend:
-   - **IP route** (priority 1): For OpenResty Gateway direct connection
-   - **sslip.io route** (priority 2): For CF Worker (primary domain route)
-   - **nip.io route** (priority 3): For CF Worker (fallback domain route)
+3. Registers one domain route per scheme (https, http) with mesh-router-backend:
+   `<ip-dashed>.<IP_ZONE>` when `IP_ZONE` is set (our own nameserver, e.g. `ip.nsl.sh`),
+   otherwise `<ip-dashed>.nip.io`
 4. Backend validates each route before storing (only healthy routes accepted)
 5. Sends periodic refreshes to maintain route registration (TTL-based)
 
@@ -37,6 +36,7 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 | `TARGET_HOST` | No | `mesh-router-caddy` | Host serving `TARGET_PORT_HTTPS`, reached over the shared docker network |
 | `READINESS_TIMEOUT` | No | 120 | Seconds to wait for `TARGET_HOST` to serve our certificate before registering routes. `0` disables the wait. Timing out is not fatal — the agent registers anyway |
 | `READINESS_INTERVAL` | No | 2 | Seconds between readiness probes |
+| `IP_ZONE` | No | - | Zone served by a mesh-router-nameserver (`ip.nsl.sh`). Set: routes are `<ip-dashed>.<IP_ZONE>` and replace nip.io. Empty: nip.io routes |
 
 > **Note**: `HEARTBEAT_INTERVAL` is deprecated. Use `REFRESH_INTERVAL` instead.
 
@@ -76,16 +76,16 @@ The `PROVIDER` string uses the same format as mesh-router:
 
 ## Route Registration
 
-The agent registers 6 routes (3 route types × 2 schemes):
+The agent registers 2 routes, one per scheme, at `ROUTE_PRIORITY`:
 
-| Type | Priority | Domain/IP | Scheme | Used By |
-|------|----------|-----------|--------|---------|
-| `ip` | 1 | `88.187.147.189` | https | OpenResty Gateway |
-| `ip` | 1 | `88.187.147.189` | http | OpenResty Gateway |
-| `domain` | 2 | `88-187-147-189.sslip.io` | https | CF Worker |
-| `domain` | 2 | `88-187-147-189.sslip.io` | http | CF Worker |
-| `domain` | 3 | `88-187-147-189.nip.io` | https | CF Worker |
-| `domain` | 3 | `88-187-147-189.nip.io` | http | CF Worker |
+| Type | Priority | Domain | Scheme | Used By |
+|------|----------|--------|--------|---------|
+| `domain` | 1 | `88-187-147-189.ip.nsl.sh` | https | CF Worker, OpenResty Gateway |
+| `domain` | 1 | `88-187-147-189.ip.nsl.sh` | http | CF Worker, OpenResty Gateway |
+
+Without `IP_ZONE` the domain is `88-187-147-189.nip.io`. The box's sslip.io names
+(Let's Encrypt) are not registered as routes: the CF Worker builds them from the
+route's `ip` when the ip.<zone> path fails.
 
 ### Route Validation
 
@@ -99,21 +99,19 @@ Example response:
 ```json
 {
   "accepted": [
-    {"type": "ip", "ip": "88.187.147.189", "port": 443},
-    {"type": "domain", "domain": "88-187-147-189.sslip.io", "port": 443}
+    {"type": "domain", "domain": "88-187-147-189.ip.nsl.sh", "port": 443}
   ],
   "rejected": [
-    {"type": "domain", "domain": "88-187-147-189.nip.io", "port": 443, "reason": "Connection timeout"}
+    {"type": "domain", "domain": "88-187-147-189.ip.nsl.sh", "port": 80, "reason": "Connection timeout"}
   ]
 }
 ```
 
-### Why Multiple Route Types?
+### Why Domain Routes?
 
 - **CF Workers cannot fetch IP addresses** (Cloudflare error 1003)
-- **Domain routes** use wildcard DNS (sslip.io, nip.io) to resolve IPs
-- **Two DNS services** provide redundancy if one is unavailable
-- **sslip.io preferred** (priority 2) as it's often more reliable than nip.io
+- **Domain routes** use wildcard DNS (our ip.<zone>, or nip.io) to resolve IPs
+- **Validation needs the name to resolve**: with `IP_ZONE`, route registration depends on our nameserver
 
 ## Development
 
@@ -170,22 +168,22 @@ docker run -e PROVIDER="https://api.nsl.sh,userid,signature" mesh-router-agent
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Cloudflare Worker                        │
-│           (uses domain routes: sslip.io, nip.io)            │
+│     (uses domain routes: ip.<zone>, fallback sslip.io)      │
 └─────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┴───────────────┐
               ▼                               ▼
     ┌─────────────────┐             ┌─────────────────┐
     │  Domain Routes  │             │ Gateway Fallback│
-    │  (sslip.io/nip) │             │  (OpenResty)    │
-    │  priority 2-3   │             │  uses IP routes │
+    │  (ip.<zone>)    │             │  (OpenResty)    │
+    │  priority 1     │             │ connects by ip  │
     └─────────────────┘             └─────────────────┘
               │                               │
               │                     ┌─────────┴─────────┐
               │                     ▼                   ▼
               │           ┌─────────────┐     ┌─────────────┐
-              │           │  IP Route   │     │ VPN Tunnel  │
-              │           │  priority 1 │     │ priority 10 │
+              │           │ Agent Route │     │ VPN Tunnel  │
+              │           │  priority 1 │     │ priority 2  │
               │           └─────────────┘     └─────────────┘
               │                     │                   │
               └─────────────────────┼───────────────────┘
