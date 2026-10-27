@@ -47,7 +47,7 @@ async function main() {
   console.log(`Target port HTTPS: ${config.TARGET_PORT_HTTPS}`);
   console.log(`Target port HTTP: ${config.TARGET_PORT_HTTP}`);
   console.log(`Route priority: ${config.ROUTE_PRIORITY}`);
-  console.log(`IP zone: ${config.IP_ZONE || '(none, nip.io)'}`);
+  console.log(`IP zone: ${config.IP_ZONE || '(from the backend)'}`);
   console.log(`Refresh interval: ${config.REFRESH_INTERVAL}s (${Math.round(config.REFRESH_INTERVAL / 60)} min)`);
   console.log(`Error retry interval: ${config.ERROR_RETRY_INTERVAL}s (${Math.round(config.ERROR_RETRY_INTERVAL / 60)} min)`);
   console.log(
@@ -60,6 +60,7 @@ async function main() {
   let initialized = false;
   let certState: CertificateState | null = null;
   let routes: Route[] = [];
+  let ipZone = '';
 
   while (!initialized) {
     try {
@@ -71,6 +72,15 @@ async function main() {
         throw new Error(`Backend version incompatible (v${versionInfo.version}). Requires v2+. ${versionInfo.error || ''}`);
       }
       console.log(`Backend version: v${versionInfo.version} (compatible)`);
+      // IP_ZONE stated in the env wins; else the provider's own. Neither is a
+      // misconfigured deployment: no direct route, the tunnel only.
+      ipZone = config.IP_ZONE || versionInfo.ipZone || '';
+      if (ipZone) {
+        console.log(`IP zone: ${ipZone}${config.IP_ZONE ? '' : ' (published by the backend)'}`);
+      } else {
+        console.error('ERROR: no IP zone - IP_ZONE is unset and the backend publishes none. ' +
+          'No direct route will be registered; this box is reachable over its tunnel only.');
+      }
 
       // Wait for backend to be available
       console.log('\nChecking backend availability...');
@@ -85,16 +95,16 @@ async function main() {
       console.log(`\nDetected public IP: ${publicIp}`);
 
       // Certificate management - always request fresh cert at startup
-      // This ensures we get the latest CA and certificate extensions (e.g., nip.io SAN)
+      // This ensures we get the latest CA and certificate extensions (e.g., the IP zone SAN)
       console.log('\nInitializing certificate...');
       console.log('[Cert] Requesting new certificate at startup...');
       const keyPem = await ensureKeyPair();
       certState = await requestCertificate(provider, keyPem, publicIp);
 
-      // Build domain routes (HTTPS and HTTP) on IP_ZONE when set, else nip.io
+      // Build domain routes (HTTPS and HTTP) on the IP zone; none without one
       // Raw IP routes are not registered because Caddy serves its own auto-TLS cert
       // for non-SNI connections, which doesn't chain to our CA.
-      routes = buildAgentRoutes(publicIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, config.IP_ZONE);
+      routes = buildAgentRoutes(publicIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, ipZone);
 
       // Do not announce an endpoint before it is actually being served.
       //
@@ -127,19 +137,21 @@ async function main() {
         }
       }
 
-      // Initial route registration
-      console.log('\nRegistering routes...');
-      const result = await registerRoutes(provider, routes);
+      // Initial route registration (nothing to register without an IP zone)
+      if (routes.length > 0) {
+        console.log('\nRegistering routes...');
+        const result = await registerRoutes(provider, routes);
 
-      if (!result.success) {
-        throw new Error(`Route registration failed: ${result.error}`);
-      }
+        if (!result.success) {
+          throw new Error(`Route registration failed: ${result.error}`);
+        }
 
-      for (const route of routes) {
-        console.log(`[${new Date().toISOString()}] Route registered: ${route.ip}:${route.port} (scheme: ${route.scheme}, priority: ${route.priority})`);
-      }
-      if (result.domain) {
-        console.log(`  Domain: ${result.domain}`);
+        for (const route of routes) {
+          console.log(`[${new Date().toISOString()}] Route registered: ${route.ip}:${route.port} (scheme: ${route.scheme}, priority: ${route.priority})`);
+        }
+        if (result.domain) {
+          console.log(`  Domain: ${result.domain}`);
+        }
       }
 
       initialized = true;
@@ -161,6 +173,16 @@ async function main() {
       // Re-detect IP in case it changed
       const currentIp = config.PUBLIC_IP || (await detectPublicIp());
 
+      // No IP zone yet: ask the backend again, so one it starts publishing is taken
+      // up without a restart.
+      if (!ipZone) {
+        ipZone = (await checkBackendVersion(provider.backendUrl)).ipZone || '';
+        if (ipZone) {
+          console.log(`[${new Date().toISOString()}] IP zone now published by the backend: ${ipZone}`);
+          routes = buildAgentRoutes(currentIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, ipZone);
+        }
+      }
+
       // Check certificate renewal
       if (certState && needsRenewal(certState.expiresAt)) {
         console.log(`[${new Date().toISOString()}] Certificate renewal needed (expires in ${formatTimeRemaining(certState.expiresAt)})`);
@@ -172,7 +194,7 @@ async function main() {
       if (routes.length > 0 && currentIp !== routes[0].ip) {
         console.log(`[${new Date().toISOString()}] IP changed: ${routes[0].ip} -> ${currentIp}`);
         // Rebuild all routes with new IP
-        routes = buildAgentRoutes(currentIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, config.IP_ZONE);
+        routes = buildAgentRoutes(currentIp, config.TARGET_PORT_HTTPS, config.TARGET_PORT_HTTP, config.ROUTE_PRIORITY, ipZone);
       }
 
       if (routes.length > 0) {

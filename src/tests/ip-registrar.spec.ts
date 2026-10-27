@@ -118,12 +118,8 @@ describe("IpRegistrar URL construction", () => {
 });
 
 describe("buildAgentRoutes", () => {
-  it("registers nip.io routes without an IP zone", () => {
-    const routes = buildAgentRoutes("80.241.218.30", 443, 80, 1, "");
-    expect(routes.map((r) => [r.domain, r.scheme, r.port, r.priority])).to.deep.equal([
-      ["80-241-218-30.nip.io", "https", 443, 1],
-      ["80-241-218-30.nip.io", "http", 80, 1],
-    ]);
+  it("registers no route without an IP zone (no nip.io fallback)", () => {
+    expect(buildAgentRoutes("80.241.218.30", 443, 80, 1, "")).to.deep.equal([]);
   });
 
   it("registers only IP zone routes when one is set (no nip.io)", () => {

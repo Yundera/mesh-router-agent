@@ -11,8 +11,10 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 1. Parses the `PROVIDER` connection string
 2. Detects or uses configured public IP
 3. Registers one domain route per scheme (https, http) with mesh-router-backend:
-   `<ip-dashed>.<IP_ZONE>` when `IP_ZONE` is set (our own nameserver, e.g. `ip.nsl.sh`),
-   otherwise `<ip-dashed>.nip.io`
+   `<ip-dashed>.<IP_ZONE>`, the provider's nameserver zone (e.g. `ip.nsl.sh`): `IP_ZONE`
+   when set, else the `ipZone` the backend publishes in `/router/api/version`. With
+   neither the deployment is misconfigured: the agent logs an error and registers no
+   route, leaving the box on its tunnel
 4. Backend validates each route before storing (only healthy routes accepted)
 5. Sends periodic refreshes to maintain route registration (TTL-based)
 
@@ -36,7 +38,7 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 | `TARGET_HOST` | No | `mesh-router-caddy` | Host serving `TARGET_PORT_HTTPS`, reached over the shared docker network |
 | `READINESS_TIMEOUT` | No | 120 | Seconds to wait for `TARGET_HOST` to serve our certificate before registering routes. `0` disables the wait. Timing out is not fatal — the agent registers anyway |
 | `READINESS_INTERVAL` | No | 2 | Seconds between readiness probes |
-| `IP_ZONE` | No | - | Zone served by a mesh-router-nameserver (`ip.nsl.sh`). Set: routes are `<ip-dashed>.<IP_ZONE>` and replace nip.io. Empty: nip.io routes |
+| `IP_ZONE` | No | - | Zone served by a mesh-router-nameserver (`ip.nsl.sh`). Routes are `<ip-dashed>.<IP_ZONE>`. Empty: the backend's published `ipZone`; none there either = no direct route (no nip.io fallback) |
 
 > **Note**: `HEARTBEAT_INTERVAL` is deprecated. Use `REFRESH_INTERVAL` instead.
 
@@ -83,7 +85,7 @@ The agent registers 2 routes, one per scheme, at `ROUTE_PRIORITY`:
 | `domain` | 1 | `88-187-147-189.ip.nsl.sh` | https | CF Worker, OpenResty Gateway |
 | `domain` | 1 | `88-187-147-189.ip.nsl.sh` | http | CF Worker, OpenResty Gateway |
 
-Without `IP_ZONE` the domain is `88-187-147-189.nip.io`. The box's sslip.io names
+Without an IP zone there is no agent route. The box's sslip.io names
 (Let's Encrypt) are not registered as routes: the CF Worker builds them from the
 route's `ip` when the ip.<zone> path fails.
 
@@ -110,7 +112,7 @@ Example response:
 ### Why Domain Routes?
 
 - **CF Workers cannot fetch IP addresses** (Cloudflare error 1003)
-- **Domain routes** use wildcard DNS (our ip.<zone>, or nip.io) to resolve IPs
+- **Domain routes** use our own IP-encoding DNS (ip.<zone>) to resolve IPs
 - **Validation needs the name to resolve**: with `IP_ZONE`, route registration depends on our nameserver
 
 ## Development

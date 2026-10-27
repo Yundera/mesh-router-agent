@@ -255,7 +255,7 @@ export function ipToDash(ip: string): string {
  * @param priority - Route priority (lower = higher priority)
  * @param source - Route source identifier
  * @param scheme - Protocol scheme (http or https)
- * @param dnsService - DNS zone resolving <ip-dashed>.<zone> to the IP (nip.io, or an IP_ZONE like ip.nsl.sh)
+ * @param dnsService - DNS zone resolving <ip-dashed>.<zone> to the IP (an IP zone like ip.nsl.sh)
  */
 export function buildDomainRoute(
   ip: string,
@@ -277,10 +277,10 @@ export function buildDomainRoute(
 }
 
 /**
- * The agent's routes for a public IP, over HTTPS and HTTP: on ipZone (our own
- * nameserver) when one is set, else on nip.io. ipZone replaces nip.io rather than
- * sitting beside it, so a box with an IP zone depends on no third-party DNS; the box
- * still serves its sslip.io names, which the CF worker uses as its fallback.
+ * The agent's routes for a public IP, over HTTPS and HTTP, on ipZone (the provider's
+ * mesh-router-nameserver zone). None without a zone: that is a misconfigured
+ * deployment, and the box is then reachable over its tunnel only. The box still serves
+ * its sslip.io names, which the CF worker uses as its fallback.
  */
 export function buildAgentRoutes(
   ip: string,
@@ -289,10 +289,10 @@ export function buildAgentRoutes(
   priority: number,
   ipZone: string
 ): Route[] {
-  const zone = ipZone || 'nip.io';
+  if (!ipZone) return [];
   return [
-    buildDomainRoute(ip, httpsPort, priority, 'agent', 'https', zone),
-    buildDomainRoute(ip, httpPort, priority, 'agent', 'http', zone),
+    buildDomainRoute(ip, httpsPort, priority, 'agent', 'https', ipZone),
+    buildDomainRoute(ip, httpPort, priority, 'agent', 'http', ipZone),
   ];
 }
 
@@ -313,6 +313,8 @@ export async function checkBackendHealth(backendUrl: string): Promise<boolean> {
 export interface BackendVersionInfo {
   compatible: boolean;
   version: number;
+  /** The provider's IP zone (ip.nsl.sh); absent from a backend that runs no nameserver. */
+  ipZone?: string;
   error?: string;
 }
 
@@ -331,7 +333,8 @@ export async function checkBackendVersion(backendUrl: string): Promise<BackendVe
     }
 
     const compatible = data.version >= 2;
-    return { compatible, version: data.version };
+    const ipZone = typeof data.ipZone === 'string' && data.ipZone ? data.ipZone : undefined;
+    return { compatible, version: data.version, ...(ipZone ? { ipZone } : {}) };
   } catch (error) {
     // Endpoint doesn't exist or returned error - old backend
     return {
