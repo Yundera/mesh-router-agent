@@ -26,11 +26,10 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 |----------|----------|---------|-------------|
 | `PROVIDER` | Yes | - | Connection string `<backend_url>,<userid>,<signature>` |
 | `PUBLIC_IP` | No | auto-detect | Public IP to register (leave empty to auto-detect) |
-| `TARGET_PORT` | No | 443 | Port where Caddy listens for incoming traffic |
+| `TARGET_PORT_HTTPS` | No | 443 | Port where Caddy serves HTTPS (`TARGET_PORT` is its deprecated alias) |
+| `TARGET_PORT_HTTP` | No | 80 | Port where Caddy serves HTTP |
 | `ROUTE_PRIORITY` | No | 1 | Route priority (lower = higher priority) |
 | `REFRESH_INTERVAL` | No | 300 | Route refresh interval in seconds (5 minutes) |
-| `HEALTH_CHECK_PATH` | No | - | Optional health check HTTP path (e.g., `/.well-known/health`) |
-| `HEALTH_CHECK_HOST` | No | - | Optional health check Host header override |
 | `CERT_KEY_PATH` | No | `./data/key.pem` | Path to store the agent's private key |
 | `CERT_PATH` | No | `./data/cert.pem` | Path to store the agent's certificate |
 | `CA_CERT_PATH` | No | `./data/ca-cert.pem` | Path to store the CA certificate |
@@ -39,8 +38,34 @@ This agent is part of the Mesh Router architecture, designed to reduce latency b
 | `READINESS_TIMEOUT` | No | 120 | Seconds to wait for `TARGET_HOST` to serve our certificate before registering routes. `0` disables the wait. Timing out is not fatal — the agent registers anyway |
 | `READINESS_INTERVAL` | No | 2 | Seconds between readiness probes |
 | `IP_ZONE` | No | - | Zone served by a mesh-router-nameserver (`ip.nsl.sh`). Routes are `<ip-dashed>.<IP_ZONE>`. Empty: the backend's published `ipZone`; none there either = no direct route (no nip.io fallback) |
+| `MESH_USAGE_REPORT` | No | `on` | Usage (DAU) reporting, see below. `off` = no listener, nothing sent |
+| `USAGE_LOG_PORT` | No | 5140 | UDP port Caddy streams its access log to. Reach it over the docker network only; never publish it |
+| `USAGE_REPORT_INTERVAL` | No | 300 | Seconds between report attempts; a report goes out only when the day's set grew |
+| `USAGE_STATE_PATH` | No | `./usage/state.json` | What is collected and sent, for mesh-console (and kept across restarts) |
+| `DOMAIN` | No | - | The box's domain (`alice.nsl.sh`), to tell which app a request was for. Empty: the domain the backend returns on route registration |
 
 > **Note**: `HEARTBEAT_INTERVAL` is deprecated. Use `REFRESH_INTERVAL` instead.
+
+### Usage reporting
+
+The backend's Daily Active Users KPI counts, per day, **the boxes where someone opened app X**.
+The box reports it itself, so it is right whichever route the visit took (direct, gateway, tunnel):
+
+1. mesh-router-caddy streams its access log (JSON) to the agent on `USAGE_LOG_PORT`, over UDP: a
+   stopped agent loses a few entries instead of Caddy blocking or dumping them to its own log.
+   Nothing is written to disk.
+2. The agent keeps a request only if it is a person opening a page: a `GET` answered 2xx that the
+   browser marks as a navigation (`Sec-Fetch-Mode: navigate`, or an `Accept` asking for HTML), from
+   a client outside the agent's own docker networks (so the box's own probes do not count; a home
+   LAN does).
+3. The host becomes an app name (`nextcloud-alice.nsl.sh` → `nextcloud`; the bare domain →
+   `_root`; a custom domain → `_custom`) and lands in that UTC day's set.
+4. Every `USAGE_REPORT_INTERVAL`, if the set grew, the agent sends
+   `POST /router/api/usage/:userid/:sig {date, apps}`, signed like route registration. Only today
+   and yesterday are kept; a failed send is retried, an older backend (404) is retried hourly.
+
+Sent: the date and the app names. Not sent: addresses, paths, user agents, counts.
+`MESH_USAGE_REPORT=off` turns it off on both sides (the template wires the switch to Caddy too).
 
 ### Example Configuration
 

@@ -54,6 +54,22 @@ interface EnvConfig {
   READINESS_TIMEOUT: number;
   /** Delay between readiness probes in seconds (default: 2) */
   READINESS_INTERVAL: number;
+  /**
+   * Usage (DAU) reporting: `on` (default) or `off`. On, the agent reads Caddy's access
+   * log on USAGE_LOG_PORT (UDP) and reports the apps opened per day to the backend.
+   */
+  MESH_USAGE_REPORT: 'on' | 'off';
+  /** UDP port Caddy's access log is streamed to (default: 5140) */
+  USAGE_LOG_PORT: number;
+  /** Seconds between usage reports; a report is sent only when the day's set grew (default: 300) */
+  USAGE_REPORT_INTERVAL: number;
+  /** Usage state file, read by mesh-console (default: ./usage/state.json) */
+  USAGE_STATE_PATH: string;
+  /**
+   * The box's domain (e.g. alice.nsl.sh), to tell which app a request was for. Empty =
+   * learnt from the backend's answer to route registration.
+   */
+  DOMAIN: string;
 }
 
 // Parse TARGET_PORT with backward compat: TARGET_PORT defaults to TARGET_PORT_HTTPS
@@ -82,6 +98,12 @@ export const config: EnvConfig = {
   TARGET_HOST: process.env.TARGET_HOST || 'mesh-router-caddy',
   READINESS_TIMEOUT: parseInt(process.env.READINESS_TIMEOUT || '120', 10),
   READINESS_INTERVAL: parseInt(process.env.READINESS_INTERVAL || '2', 10),
+  // Usage (DAU) reporting; anything but "off" is on
+  MESH_USAGE_REPORT: (process.env.MESH_USAGE_REPORT || '').trim().toLowerCase() === 'off' ? 'off' : 'on',
+  USAGE_LOG_PORT: parseInt(process.env.USAGE_LOG_PORT || '5140', 10),
+  USAGE_REPORT_INTERVAL: parseInt(process.env.USAGE_REPORT_INTERVAL || '300', 10),
+  USAGE_STATE_PATH: process.env.USAGE_STATE_PATH || './usage/state.json',
+  DOMAIN: (process.env.DOMAIN || '').trim().toLowerCase(),
 };
 
 /**

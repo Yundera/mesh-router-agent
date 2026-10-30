@@ -5,6 +5,7 @@ import {
   detectPublicIp,
   checkBackendHealth,
   checkBackendVersion,
+  ipToDash,
   Route,
 } from './services/IpRegistrar.js';
 import {
@@ -15,6 +16,7 @@ import {
   CertificateState,
 } from './services/CertificateManager.js';
 import { waitForUpstreamTls } from './services/UpstreamReadiness.js';
+import { UsageReporter } from './services/UsageReporter.js';
 
 const VERSION = process.env.BUILD_VERSION || '2.0.0';
 
@@ -56,6 +58,22 @@ async function main() {
       : 'Upstream readiness: disabled (READINESS_TIMEOUT=0)',
   );
 
+  // Usage (DAU) reporting runs beside route registration, never behind it: a box
+  // that gets no direct route (NAT, no IP zone) is still used and still reports.
+  const usage = new UsageReporter({
+    provider,
+    enabled: config.MESH_USAGE_REPORT === 'on',
+    port: config.USAGE_LOG_PORT,
+    intervalSeconds: config.USAGE_REPORT_INTERVAL,
+    statePath: config.USAGE_STATE_PATH,
+    host: { domain: config.DOMAIN, publicIpDash: config.PUBLIC_IP ? ipToDash(config.PUBLIC_IP) : '' },
+  });
+  try {
+    await usage.start();
+  } catch (error) {
+    console.error(`[Usage] Could not start: ${formatError(error)} — usage reporting is off until restart`);
+  }
+
   // Initialization with retry loop
   let initialized = false;
   let certState: CertificateState | null = null;
@@ -93,6 +111,7 @@ async function main() {
       // Detect public IP first (needed for certificate SAN)
       const publicIp = config.PUBLIC_IP || (await detectPublicIp());
       console.log(`\nDetected public IP: ${publicIp}`);
+      usage.setHostContext({ publicIpDash: ipToDash(publicIp) });
 
       // Certificate management - always request fresh cert at startup
       // This ensures we get the latest CA and certificate extensions (e.g., the IP zone SAN)
@@ -151,6 +170,7 @@ async function main() {
         }
         if (result.domain) {
           console.log(`  Domain: ${result.domain}`);
+          usage.setHostContext({ domain: result.domain });
         }
       }
 
@@ -172,6 +192,7 @@ async function main() {
     try {
       // Re-detect IP in case it changed
       const currentIp = config.PUBLIC_IP || (await detectPublicIp());
+      usage.setHostContext({ publicIpDash: ipToDash(currentIp) });
 
       // No IP zone yet: ask the backend again, so one it starts publishing is taken
       // up without a restart.
